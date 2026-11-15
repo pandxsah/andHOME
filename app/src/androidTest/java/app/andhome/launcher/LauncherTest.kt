@@ -3,6 +3,10 @@ package app.andhome.launcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertIsDisplayed
@@ -20,11 +24,19 @@ class LauncherTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithText("No apps found").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("No apps found").assertIsDisplayed()
         compose.onNodeWithText("Back to home").performClick()
-        compose.onNodeWithText("Edit").performClick()
-        compose.onNodeWithText("MAKE IT YOURS").assertIsDisplayed()
-        compose.onNodeWithText("Done").performClick()
-        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Dark"))
         compose.onNodeWithText("Dark").performClick()
-        compose.onNodeWithText("Make yourself at home.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back to home").performClick()
+        compose.onNodeWithText("Personal").assertIsDisplayed()
+    }
+    @Test fun profilesCanBeCreatedAndDeleted() {
+        compose.onNodeWithText("Personal").performClick()
+        compose.onNodeWithText("Profile name").performTextInput("Work test")
+        compose.onNodeWithText("Create from current layout").performClick()
+        compose.onNodeWithText("Work test").performClick()
+        compose.onNodeWithText("Delete active profile").performClick()
+        compose.onNodeWithText("Delete profile").performClick()
+        compose.onNodeWithText("Personal").assertIsDisplayed()
     }
 }

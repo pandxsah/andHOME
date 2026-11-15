@@ -1,21 +1,25 @@
-# Android capability boundaries
+# Android phone capability boundaries
 
-The core launcher experience uses the same code on Android 10 and newer. No artificial API-level feature tiers.
+The core experience uses the same implementation on Android 10 and newer; no arbitrary version-based feature removal.
 
-- **Default home:** Android requires the user's role selection; declaring HOME does not silently make an app default. OEM launcher gestures/Recents animations can remain tied to the system launcher. andHOME does not replace SystemUI or Recents.
-- **App visibility:** Android 11+ filters package queries. The manifest queries MAIN/LAUNCHER activities, not every installed package. The MVP enumerates current-user launchable activities only. Disabled/uninstalled apps and apps without a launch activity are not shown. Work/private profiles need explicit future LauncherApps/user-profile support; private space also has role/permission requirements on applicable versions.
-- **Control Center:** ordinary apps cannot freely toggle protected settings. Android 10+ restricts direct Wi-Fi toggles. Open system settings/panels where required. Global brightness writes require user-granted special access; Bluetooth and related permissions vary by Android version. A panel inside the launcher is possible on API 29; replacing the notification shade is not a normal launcher capability.
-- **Music:** reading other apps' active media sessions normally requires user-enabled notification listener access. Each player controls available transport commands. A HOME role alone does not grant media access.
-- **Colors/blur:** Android 12 introduced dynamic system palettes and RenderEffect. Static palettes and lightweight compositing can preserve the look on API 29 without those APIs. This MVP uses consistent custom palettes on every supported version.
-- **Widgets/background:** third-party widgets require an AppWidgetHost and explicit binding. Weather/sports refresh must respect background scheduling, battery limits and provider terms. No exact real-time delivery promise.
-- **Wallpapers:** cinematic animation must pause when not visible and offer a static/low-power option. Full live wallpapers require separate service and user selection.
-- **Backup/integration:** MVP automatic OS backup is disabled. Future explicit exports must omit secrets. tvHOME pairing requires a compatible protocol and separate tvHOME changes; no companion connection is currently attempted.
+- **Default home:** the user must choose the HOME role. OEM gesture/Recents integrations can remain tied to the system launcher. andHOME cannot replace SystemUI, the system lock screen or all gesture animations as a normal app.
+- **Apps:** MAIN/LAUNCHER package queries enumerate current-user launchable activities. No broad all-package permission. Work/private profiles need separate LauncherApps integration; apps without launcher activities are not listed.
+- **Controls:** Internet, Bluetooth, airplane and sound controls open Android panels/settings where protected. Media volume uses normal AudioManager access. The brightness slider changes only andHOME's window; global device brightness remains in system display settings.
+- **Music:** an enabled notification listener is required to read other apps' active sessions. Players control available actions. Notification access is optional; disabling it removes media state. No notification messages are stored.
+- **Watching content:** Android TV's Watch Next and preview-channel providers cannot serve as a universal phone Continue Watching feed. Independent account/provider integrations are still required.
+- **Scenes:** background/foreground compositing and preblurred textures run on API 29. Custom photos have no automatic foreground extraction. Cinematic mode is a launcher animation, not a live-wallpaper service. No RenderEffect requirement.
+- **Network cards:** weather/football/prayer data requires Internet and provider availability. Cached data is labeled, refresh is lifecycle-bound, and there is no promise of exact background or real-time updates. ESPN's endpoint is public but not a stable contracted API. Open-Meteo's free endpoint requires non-commercial use.
+- **Profiles:** launcher preferences only; not Android users, device-level privacy boundaries or work profiles.
+- **Backup:** explicit JSON export only, excluding photo/icon files, recent usage, media metadata and credentials. Android cloud/device-transfer backup is excluded. Import replaces all profiles only after user confirmation and validation.
+- **Companion:** pairing/remote control needs tvHOME-side support, explicit trust and an authenticated protocol. No TV changes or unsolicited connections are made.
 
 Primary references:
 
 - https://developer.android.com/reference/android/app/role/RoleManager
 - https://developer.android.com/training/package-visibility/declaring
-- https://developer.android.com/about/versions/10/privacy/changes#configure-wifi
+- https://developer.android.com/reference/android/provider/Settings.Panel
 - https://developer.android.com/reference/android/media/session/MediaSessionManager
-- https://developer.android.com/develop/ui/views/appwidgets/host
-- https://developer.android.com/develop/background-work/background-tasks/persistent-work
+- https://developer.android.com/reference/android/view/WindowManager.LayoutParams#screenBrightness
+- https://open-meteo.com/en/docs
+- https://open-meteo.com/en/docs/geocoding-api
+- https://aladhan.com/prayer-times-api

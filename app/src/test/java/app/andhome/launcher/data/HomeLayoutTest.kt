@@ -24,4 +24,20 @@ class HomeLayoutTest {
         assertEquals(listOf("b"), HomeLayout(home = listOf("a", "b")).remove("a").home)
     }
     @Test fun emptyPinIsIgnored() { assertEquals(HomeLayout(), HomeLayout().pin("", Placement.HOME)) }
+    @Test fun shrinkingDockPreservesOverflowPinsOnHome() {
+        val layout = HomeLayout(home = listOf("home"), dock = listOf("a", "b", "c", "d", "e")).withDockLimit(3)
+        assertEquals(listOf("a", "b", "c"), layout.dock)
+        assertEquals(listOf("home", "d", "e"), layout.home)
+        assertEquals(3, layout.dockLimit)
+    }
+    @Test fun hiddenAppsLeaveHomeAndDock() {
+        val layout = HomeLayout(home = listOf("a"), dock = listOf("b")).hide("a").hide("b")
+        assertTrue(layout.home.isEmpty()); assertTrue(layout.dock.isEmpty())
+        assertEquals(setOf("a", "b"), layout.hidden)
+    }
+    @Test fun expandedDockAcceptsSevenPins() {
+        val layout = (1..7).fold(HomeLayout(dockLimit = 7)) { current, i -> current.pin("$i", Placement.DOCK) }
+        assertEquals(7, layout.dock.size)
+        assertEquals(layout, layout.pin("8", Placement.DOCK))
+    }
 }

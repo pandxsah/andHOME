@@ -1,53 +1,42 @@
-# Build and phone acceptance
+# andHOME 0.2 validation
 
-Validation date: 15 November 2026.
+Validation date: 15 November 2026. Development build for Android phones, not TV installation.
 
-## Build environment
+## Environment
 
-Windows, Microsoft JDK 17.0.21, Gradle 8.13, Android Gradle Plugin 8.13.2, Kotlin 2.2.21, Android SDK platform 36, build-tools 35.0.0. Toolchain and caches are isolated under the chat workspace's `work/toolchain`, outside the source deliverable.
+Windows, JDK 17.0.21, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21, Android SDK 36 / build-tools 35.0.0. A separate headless Pixel 2 phone emulator runs Android 10 / API 29. All device commands explicitly target `emulator-5580`; no user phone or TV is modified.
 
-Build task set:
+## Checks
 
 ```text
-assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest
+assembleDebug testDebugUnitTest lintDebug connectedDebugAndroidTest
 ```
 
-## Results
+The build and verification record is delivered with the APK. Tests include:
 
-- Debug launcher APK compiled successfully.
-- Five JVM layout tests passed: zero failures, errors or skips.
-- Android lint completed with zero errors and nine advisory warnings: six dependency-version notices, two optional Kotlin extension suggestions and one backup compatibility advisory. The manifest explicitly disables legacy backup and references Android 12+ cloud/device-transfer exclusions; the backup advisory remained in the incremental report. Pinned dependency versions are intentional for this initial build.
-- Instrumentation test APK compiled successfully. Its two tests cover settings persistence and the search/edit/theme navigation flow. These tests were **not executed** on a phone or emulator.
-- APK signature verified with Android `apksigner` (v2 signing). Binary manifest checked with `aapt`: package `app.andhome.launcher`, version `0.1.0`, minimum SDK 29, target SDK 36.
-- Source archive excludes toolchains, generated build directories, local caches, keystores and Git internals. Project repository: https://github.com/pandxsah/andHOME.
+Final result: build succeeded; **10 JVM tests and 7 API 29 device tests passed**, with zero failures/skips. Android lint completed with **0 errors and 12 advisory warnings** (dependency update notices and Kotlin extension suggestions). APK v2 signature and binary minimum/target SDK values were verified: version 0.2.0, minSdk 29, targetSdk 36.
 
-No APK was installed on any device during validation, no launcher role was changed and no tvHOME files were modified. Smartphone runtime behavior remains to be verified by installing the APK on a phone.
+- JVM layout tests: duplicate prevention, home/dock transfer, full-dock safety, ordering, hide behavior and dock resize without losing pins.
+- JVM input limits: complete allowed import payloads and rejection above the bound.
+- Device UI: search/no-results, theme navigation and profile creation/deletion.
+- Device persistence: profile isolation, settings recreation, backup round-trip, rejected imports leaving existing data intact, portable export exclusions and migration of 0.1 preferences.
+- Phone screenshots reviewed against tvHOME's home photograph: portrait scene/clock/depth, glass panels, horizontal shelf and dock.
 
-## Phone acceptance checklist
+Automated ActivityScenario tests run with the stock launcher selected. Default-HOME behavior is checked separately: assign andHOME's HOME role, press Home, and verify resolution to `app.andhome.launcher/.MainActivity`. A test teardown run with andHOME already selected as HOME encountered an ActivityScenario destruction timeout; this is recorded as a test-fixture limitation rather than ignored.
 
-Use Android 10+ on a phone. Recommended coverage: API 29, API 30 and API 36, both gesture navigation and three-button navigation.
+## Still requiring real-phone coverage
 
-1. Install and open andHOME. Confirm the app drawer shows launchable apps and launches the selected app.
-2. Tap Set as default home. Confirm Android's choice dialog works; test both declining and accepting. Press Home from another app and verify andHOME opens at its home screen.
-3. Search using mixed case; clear the query; search for no matches; use the keyboard Search action with one result.
-4. Long-press an app in the drawer, pin to home, transfer it to dock, reorder and remove. Fill the dock with five apps; verify a sixth cannot displace another pin.
-5. Switch system/dark/light theme and grid columns. Force-stop/reopen and reboot; confirm layout and settings remain.
-6. Install, disable, reenable and uninstall a test app. Confirm the drawer updates and unavailable pins disappear without a crash.
-7. Open drawer/settings/edit mode, press Home, and confirm a clean home screen. Press Back at home and confirm the launcher stays available.
-8. Check portrait/landscape, display cutouts, keyboard, 200% font scale and TalkBack labels. Test on a lower-memory Android 10 phone.
-9. Restore the previous launcher through Android Settings → Apps → Default apps → Home app.
+Media session artwork/actions across Spotify/YouTube Music/other players, revoking notification access, file-picker permissions across providers, screen cutouts and gesture navigation, 200% font scaling/TalkBack, power saver/motion transitions, Android 11–16 behavior and OEM default-home dialogs. Online feeds and update checks also depend on live provider responses; unit/UI tests do not establish long-term provider reliability.
 
-For automated device tests, connect a **phone/emulator** and select that device explicitly using `ANDROID_SERIAL` before `gradlew connectedDebugAndroidTest`; do not run against an unrelated connected TV.
+## Phone acceptance
 
-## Files to start with
+1. Install on Android 10+ and select andHOME as default. Return Home from another app.
+2. Open All apps, search, launch, pin, move, rename, hide/show, choose a custom icon and restore the original icon.
+3. Choose all five scenes and a custom photo. Test Classic, themes, motion/battery saver and landscape.
+4. Swipe the widget shelf; configure a city; enable media access; test supported playback actions. Enable optional cards and verify cached/offline states.
+5. Resize the dock and verify overflow moves to home. Create a second profile and confirm independent layout/theme/widget preferences.
+6. Export a backup, change settings, import with explicit confirmation; try a malformed/oversized file and confirm nothing is replaced.
+7. Force-stop/reopen and reboot. Confirm profiles, home pins, hidden apps and settings persist.
+8. Switch back through Android Settings → Apps → Default apps → Home app.
 
-- `app/src/main/AndroidManifest.xml`: HOME entry points and launcher package visibility.
-- `MainActivity.kt`: role selection and activity/package lifecycle.
-- `Launcher.kt`: Compose home, dock, drawer, search, edit and settings.
-- `HomeViewModel.kt`: app loading and state coordination.
-- `data/`: immutable layout rules, persistence and installed-app access.
-- `features/FeatureContracts.kt`: future capability interfaces.
-- `docs/ARCHITECTURE.md`: extension plan and tvHOME context.
-- `docs/ANDROID_LIMITATIONS.md`: Android version and privilege boundaries.
-
-This is a debug-signed MVP for device evaluation. Drag-and-drop, third-party widgets and the planned online/companion features are not implemented in version 0.1.0.
+Current scope and remaining parity work are listed in `PORT_MATRIX.md`. Do not interpret the scene UI port as completed parity for TV-only/account integrations.
