@@ -109,11 +109,12 @@ fun Launcher(model: HomeViewModel, homeSignal: Int, isDefault: Boolean, requestH
             if (scene) SceneBackdrop(layout) {
                 if (page == Page.HOME) Column(Modifier.safeDrawingPadding().padding(top = 58.dp)) { HeroClock(now, name, true) }
             }
-            if (scene && page != Page.HOME) Box(Modifier.fillMaxSize().background(colors.background.copy(alpha = .94f)))
+            if (scene && page == Page.CONTROLS) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .55f)))
+            else if (scene && page != Page.HOME) Box(Modifier.fillMaxSize().background(colors.background.copy(alpha = .94f)))
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 18.dp)) {
                 if (page != Page.HOME) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { page = Page.HOME; query = "" }) { Icon(Icons.Default.ArrowBack, "Back to home") }
-                    Text(when (page) { Page.APPS -> "All apps"; Page.SETTINGS -> "Customize home"; else -> "Control Center" },
+                    Text(when (page) { Page.APPS -> "All apps"; Page.SETTINGS -> "Settings"; else -> "Control Center" },
                         style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                     if (page != Page.SETTINGS) IconButton(onClick = { page = Page.SETTINGS }) { Icon(Icons.Default.Settings, "Customize home") }
                 }
