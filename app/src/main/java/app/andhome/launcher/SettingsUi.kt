@@ -45,7 +45,7 @@ internal fun IconBadge(icon: ImageVector, tint: Color, size: Int = 30) {
 
 @Composable
 internal fun SettingsRow(label: String, icon: ImageVector? = null, tint: Color = Accent, value: String? = null,
-    divider: Boolean = true, onClick: (() -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
+    divider: Boolean = true, onClick: (() -> Unit)? = null, trailing: (@Composable RowScope.() -> Unit)? = null) {
     Column {
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

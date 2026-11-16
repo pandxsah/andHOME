@@ -111,7 +111,7 @@ internal fun ColumnScope.CustomizeScreen(model: HomeViewModel, state: HomeState,
         item { SettingsGroup("Home screen", footer = "Extra dock apps move to the home grid when you shrink the dock.") {
             SegmentedRow("App grid columns") { Segmented(listOf(3, 4, 5), layout.columns, { "$it" }) { n -> model.update { it.copy(columns = n) } } }
             SegmentedRow("Dock size") { Segmented(listOf(3, 4, 5, 6, 7), layout.dockLimit, { "$it" }) { n -> model.update { it.withDockLimit(n) } } }
-            SettingsRow("Hidden apps", Icons.Default.VisibilityOff, Color(0xFF8E8E93), value = "${layout.hidden.size}", divider = false) { hidden = true }
+            SettingsRow("Hidden apps", Icons.Default.VisibilityOff, Color(0xFF8E8E93), value = "${layout.hidden.size}", divider = false, onClick = { hidden = true })
         } }
         item { SettingsGroup("Widgets", footer = "Swipe sideways on home to see each widget. Use the arrows to reorder.") {
             val all = listOf(
@@ -139,9 +139,9 @@ internal fun ColumnScope.CustomizeScreen(model: HomeViewModel, state: HomeState,
             SettingsRow("Default home app", Icons.Default.Home, Color(0xFF34C759), divider = false, onClick = requestHome)
         } }
         item { SettingsGroup("Backup", footer = "Profiles, layouts, names, widgets and scenes. Photos and custom icons aren't included.") {
-            SettingsRow("Export backup", Icons.Default.Upload, Color(0xFF0A84FF)) { exporting = model.exportBackup(); saveBackup.launch("andHOME-backup.json") }
-            SettingsRow("Restore backup", Icons.Default.Download, Color(0xFF0A84FF), divider = false) {
-                loadBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+            SettingsRow("Export backup", Icons.Default.Upload, Color(0xFF0A84FF), onClick = { exporting = model.exportBackup(); saveBackup.launch("andHOME-backup.json") })
+            SettingsRow("Restore backup", Icons.Default.Download, Color(0xFF0A84FF), divider = false, onClick = {
+                loadBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) })
         } }
         item { SettingsGroup("About", footer = updateStatus.ifBlank { null }) {
             SettingsRow("Version", Icons.Default.Info, Color(0xFF8E8E93), value = version)
@@ -153,8 +153,8 @@ internal fun ColumnScope.CustomizeScreen(model: HomeViewModel, state: HomeState,
                     catch (_: Exception) { updateStatus = "Could not check for updates. Try again later." }
                     finally { checking = false }
                 } })
-            release?.let { result -> SettingsRow("Download ${result.version}", Icons.Default.Download, Accent, divider = false) {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.url))) } } }
+            release?.let { result -> SettingsRow("Download ${result.version}", Icons.Default.Download, Accent, divider = false, onClick = {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.url))) } }) }
         } }
         item { Text("Scenes from TV Home / tvOS Launcher (Apache 2.0) · Weather by Open-Meteo · No ads or analytics",
             fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = .45f), modifier = Modifier.padding(horizontal = 16.dp)) }
