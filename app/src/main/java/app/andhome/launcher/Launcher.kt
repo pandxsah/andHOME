@@ -31,6 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.graphics.ImageBitmap
@@ -107,80 +111,59 @@ fun Launcher(model: HomeViewModel, homeSignal: Int, isDefault: Boolean, requestH
             }
             if (scene && page != Page.HOME) Box(Modifier.fillMaxSize().background(colors.background.copy(alpha = .94f)))
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 18.dp)) {
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (page == Page.HOME) {
-                        FilledTonalButton(onClick = { profiles = true }, modifier = Modifier.widthIn(max = 140.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (scene) Color.Black.copy(alpha = .24f) else colors.surface,
-                                contentColor = if (scene) Color.White else colors.onSurface)) {
-                            Icon(Icons.Default.Person, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(name, maxLines = 1)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { page = Page.APPS }) { Icon(Icons.Default.Search, "Search apps", tint = if (scene) Color.White else colors.onBackground) }
-                        IconButton(onClick = { page = Page.CONTROLS }) { Icon(Icons.Default.Menu, "Control Center", tint = if (scene) Color.White else colors.onBackground) }
-                    } else {
-                        IconButton(onClick = { page = Page.HOME; query = "" }) { Icon(Icons.Default.ArrowBack, "Back to home") }
-                        Text(when (page) { Page.APPS -> "All apps"; Page.SETTINGS -> "Customize home"; else -> "Control Center" },
-                            style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    }
-                    IconButton(onClick = { page = if (page == Page.SETTINGS) Page.HOME else Page.SETTINGS }) {
-                        Icon(Icons.Default.Settings, "Settings", tint = if (scene && page == Page.HOME) Color.White else colors.onBackground)
-                    }
+                if (page != Page.HOME) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { page = Page.HOME; query = "" }) { Icon(Icons.Default.ArrowBack, "Back to home") }
+                    Text(when (page) { Page.APPS -> "All apps"; Page.SETTINGS -> "Customize home"; else -> "Control Center" },
+                        style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    if (page != Page.SETTINGS) IconButton(onClick = { page = Page.SETTINGS }) { Icon(Icons.Default.Settings, "Customize home") }
                 }
                 when (page) {
                     Page.HOME -> {
-                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            item {
-                                Box(Modifier.fillMaxWidth().height(if (scene) 232.dp else 250.dp)
-                                    .combinedClickable(onClick = {}, onLongClick = { editing = true; page = Page.SETTINGS })
-                                    .pointerInput(Unit) {
-                                        var total = 0f
-                                        detectVerticalDragGestures(onDragStart = { total = 0f }, onDragEnd = {
-                                            if (total < -70) page = Page.APPS else if (total > 70) page = Page.CONTROLS
-                                        }) { _, amount -> total += amount }
-                                    }) { if (!scene) HeroClock(now, name, false) }
+                        // The whole home page is one gesture surface: swipe up for apps, down for Control Center,
+                        // hold empty space to customize. Taps still reach widgets and apps.
+                        Column(Modifier.weight(1f).fillMaxWidth()
+                            .pointerInput(Unit) {
+                                var total = 0f
+                                detectVerticalDragGestures(onDragStart = { total = 0f }, onDragEnd = {
+                                    if (total < -60) page = Page.APPS else if (total > 60) page = Page.CONTROLS
+                                }) { change, amount -> total += amount; change.consume() }
                             }
-                            if (!isDefault) item { TextButton(onClick = requestHome) { Text("Set as default home", color = if (scene) Color.White else colors.primary) } }
-                            if (editing) item {
-                                GlassPanel { Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("MAKE IT YOURS", Modifier.weight(1f)); TextButton(onClick = { editing = false }) { Text("Done") }
-                                }; Text("Hold a widget to remove it. Tap an app to move, rename or hide it.", style = MaterialTheme.typography.bodySmall) }
+                            .combinedClickable(interactionSource = null, indication = null, onClick = {}, onLongClick = { page = Page.SETTINGS })) {
+                            Box(Modifier.fillMaxWidth().height(if (scene) 232.dp else 250.dp)) { if (!scene) HeroClock(now, name, false) }
+                            if (!isDefault) TextButton(onClick = requestHome, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                                Text("Set as default home", color = if (scene) Color.White else colors.primary)
                             }
-                            if (layout.widgets.isNotEmpty()) item { BoxWithConstraints(Modifier.fillMaxWidth()) {
-                                val cardWidth = if (maxWidth >= 600.dp) (maxWidth - 12.dp) / 2 else maxWidth - 20.dp
+                            if (editing) GlassPanel(Modifier.fillMaxWidth()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Tap an app to move, rename or hide it", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                    TextButton(onClick = { editing = false }) { Text("Done") }
+                                }
+                            }
+                            if (layout.widgets.isNotEmpty()) BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                val cardWidth = if (maxWidth >= 600.dp) (maxWidth - 12.dp) / 2 else maxWidth
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     items(layout.widgets, key = { it }) { widget -> Box(Modifier.width(cardWidth)) {
                                         WidgetCard(widget, state, model, { weatherSetup = true }, { model.update { it.copy(widgets = it.widgets - widget) } }, ::launch)
                                     } }
                                 }
-                            } }
+                            }
+                            Spacer(Modifier.weight(1f))
                             val home = layout.home.filterNot { it in layout.hidden }.mapNotNull { id -> state.apps.find { it.id == id } }
-                            if (home.isNotEmpty()) item {
-                                GlassPanel {
-                                    Row(verticalAlignment = Alignment.CenterVertically) { Text("YOUR APPS", Modifier.weight(1f), fontSize = 11.sp)
-                                        TextButton(onClick = { editing = !editing }) { Text(if (editing) "Done" else "Edit") } }
-                                    home.chunked(layout.columns).forEach { row -> Row {
-                                        row.forEach { app -> AppTile(app, label(app), Modifier.weight(1f), editing,
-                                            { if (editing) selected = app.id else launch(app) }, { selected = app.id }, iconPath = layout.icons[app.id]) }
-                                        repeat(layout.columns - row.size) { Spacer(Modifier.weight(1f)) }
-                                    } }
-                                }
-                            }
-                            if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                            state.error?.let { error -> item { GlassPanel { Text(error); TextButton(onClick = model::refresh) { Text("Retry") } } } }
-                        }
-                        GlassPanel(Modifier.fillMaxWidth()) {
-                            val dock = layout.dock.filterNot { it in layout.hidden }.mapNotNull { id -> state.apps.find { it.id == id } }
-                            LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                items(dock, key = { it.id }) { app -> AppTile(app, label(app), Modifier.width(62.dp), editing,
+                            home.chunked(layout.columns).forEach { row -> Row(Modifier.padding(bottom = 14.dp)) {
+                                row.forEach { app -> AppTile(app, label(app), Modifier.weight(1f), editing,
                                     { if (editing) selected = app.id else launch(app) }, { selected = app.id }, iconPath = layout.icons[app.id]) }
-                                item { Column(Modifier.width(60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    IconButton(onClick = { page = Page.APPS }, modifier = Modifier.size(54.dp)) { Icon(Icons.Default.MoreVert, "All apps") }
-                                    Text("All apps", fontSize = 11.sp)
-                                } }
-                            }
+                                repeat(layout.columns - row.size) { Spacer(Modifier.weight(1f)) }
+                            } }
+                            state.error?.let { error -> GlassPanel(Modifier.fillMaxWidth()) { Text(error); TextButton(onClick = model::refresh) { Text("Retry") } } }
+                            Icon(Icons.Default.KeyboardArrowUp, "All apps", Modifier.align(Alignment.CenterHorizontally).size(22.dp),
+                                tint = if (scene) Color.White.copy(alpha = .7f) else colors.onBackground.copy(alpha = .5f))
                         }
-                        TextButton(onClick = { page = Page.APPS }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                            Text("All apps  ↑", color = if (scene) Color.White else colors.primary)
+                        val dock = layout.dock.filterNot { it in layout.hidden }.mapNotNull { id -> state.apps.find { it.id == id } }
+                        if (dock.isNotEmpty()) GlassPanel(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                            Row(Modifier.fillMaxWidth()) {
+                                dock.forEach { app -> AppTile(app, "", Modifier.weight(1f), editing,
+                                    { if (editing) selected = app.id else launch(app) }, { selected = app.id }, iconPath = layout.icons[app.id]) }
+                            }
                         }
                     }
                     Page.APPS -> {
@@ -197,10 +180,20 @@ fun Launcher(model: HomeViewModel, homeSignal: Int, isDefault: Boolean, requestH
                         Row(verticalAlignment = Alignment.CenterVertically) { Text("${apps.size} apps · hold to customize", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = model::refresh) { Text("Refresh") } }
                         if (apps.isEmpty() && !state.loading) Text("No apps found", Modifier.padding(20.dp))
-                        LazyVerticalGrid(GridCells.Fixed(layout.columns), Modifier.weight(1f)) {
+                        // Pulling down past the top of the list closes the drawer, like a phone launcher.
+                        val pullToClose = remember { object : NestedScrollConnection {
+                            var pulled = 0f
+                            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                                if (source == NestedScrollSource.UserInput && available.y > 0f) {
+                                    pulled += available.y
+                                    if (pulled > 120f) { pulled = 0f; keyboard?.hide(); page = Page.HOME; query = "" }
+                                } else if (available.y <= 0f) pulled = 0f
+                                return Offset.Zero
+                            }
+                        } }
+                        LazyVerticalGrid(GridCells.Fixed(layout.columns), Modifier.weight(1f).nestedScroll(pullToClose)) {
                             items(apps, key = { it.id }) { app -> AppTile(app, label(app), click = { launch(app) }, hold = { selected = app.id }, iconPath = layout.icons[app.id]) }
                         }
-                        TextButton(onClick = { page = Page.HOME; query = "" }) { Text("Back to home") }
                     }
                     Page.SETTINGS -> CustomizeScreen(model, state, requestHome, { profiles = true }, { weatherSetup = true })
                     Page.CONTROLS -> ControlCenter(state, ::launch)
