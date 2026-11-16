@@ -96,8 +96,6 @@ internal fun HeroClock(now: LocalDateTime, name: String, scene: Boolean) {
     val pattern = if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm"
     val color = if (scene) Color.White else MaterialTheme.colorScheme.onBackground
     Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("${when (now.hour) { in 5..11 -> "Good morning"; in 12..16 -> "Good afternoon"; else -> "Good evening" }}, $name",
-            color = color.copy(alpha = .92f), style = MaterialTheme.typography.bodyMedium)
         Text(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), color = color.copy(alpha = .85f), fontSize = 13.sp)
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val size = (maxWidth.value * .31f).coerceIn(72f, 130f)
@@ -126,7 +124,7 @@ internal fun AppTile(app: InstalledApp, label: String, modifier: Modifier = Modi
         onClick = click, onLongClick = hold, onLongClickLabel = "Customize $label").padding(horizontal = 4.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Image(custom ?: bitmap, null, Modifier.size(48.dp).clip(RoundedCornerShape(13.dp)))
-        Text(label, Modifier.padding(top = 7.dp), maxLines = 2, overflow = TextOverflow.Ellipsis,
+        if (label.isNotEmpty()) Text(label, Modifier.padding(top = 7.dp), maxLines = 2, overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center, fontSize = 11.sp, lineHeight = 14.sp)
         if (editing) Text("•••", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
     }

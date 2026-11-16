@@ -9,6 +9,19 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -64,79 +77,87 @@ internal fun ColumnScope.CustomizeScreen(model: HomeViewModel, state: HomeState,
             }.onFailure { message("Could not use image: ${it.message}") }
         }
     }
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { Text("Make yourself at home.", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(vertical = 12.dp)) }
-        item { GlassPanel {
-            Text("LOOK & SCENES", style = MaterialTheme.typography.labelMedium)
-            Row { HomeLook.entries.forEach { look -> FilterChip(layout.look == look, { model.update { it.copy(look = look) } },
-                label = { Text(if (look == HomeLook.SCENES) "Night Scenes" else "Classic") }, modifier = Modifier.padding(end = 8.dp)) } }
-            LayoutCodec.scenes.forEach { scene ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(layout.scene == scene && layout.wallpaper.isEmpty(), onClick = { model.update { it.copy(scene = scene, wallpaper = "") } })
-                    TextButton(onClick = { model.update { it.copy(scene = scene, wallpaper = "") } }) {
-                        Text(when (scene) { "golden" -> "Golden hour"; "water" -> "Waterline"; "fog" -> "Fog"; "dawn" -> "Rainforest dawn"; else -> "Night" })
+    val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "" }
+    val profileName = state.profiles.find { it.id == state.activeProfile }?.name ?: "Personal"
+    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) {
+        item {
+            Text("Wallpaper", fontSize = 13.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = .55f),
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 4.dp),
+                modifier = Modifier.padding(bottom = 22.dp)) {
+                items(LayoutCodec.scenes, key = { it }) { scene ->
+                    SceneThumb(scene, sceneName(scene), layout.look == HomeLook.SCENES && layout.scene == scene && layout.wallpaper.isEmpty()) {
+                        model.update { it.copy(look = HomeLook.SCENES, scene = scene, wallpaper = "") }
+                    }
+                }
+                item {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(width = 84.dp, height = 150.dp).clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(if (layout.wallpaper.isNotEmpty()) 2.5.dp else 0.dp, if (layout.wallpaper.isNotEmpty()) Accent else Color.Transparent, RoundedCornerShape(14.dp))
+                            .clickable { wallpaperProfile = state.activeProfile; chooseWallpaper.launch(arrayOf("image/*")) },
+                            contentAlignment = Alignment.Center) { Icon(Icons.Default.AddPhotoAlternate, "Choose photo") }
+                        Text("Photo", fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                     }
                 }
             }
-            TextButton(onClick = { wallpaperProfile = state.activeProfile; chooseWallpaper.launch(arrayOf("image/*")) }) { Text("Choose your own wallpaper") }
-            Row(verticalAlignment = Alignment.CenterVertically) { Text("Slow cinematic motion", Modifier.weight(1f))
-                Switch(layout.motion, { enabled -> model.update { it.copy(motion = enabled) } }) }
-            Text("Motion pauses when the launcher is off screen, in battery saver or when system animations are disabled.", style = MaterialTheme.typography.bodySmall)
+        }
+        item { SettingsGroup("Appearance") {
+            SegmentedRow("Theme") { Segmented(ThemeMode.entries, layout.theme, { it.name.lowercase().replaceFirstChar(Char::uppercase) }) { mode -> model.update { it.copy(theme = mode) } } }
+            SettingsSwitch("Classic look (no scene)", layout.look == HomeLook.CLASSIC, Icons.Default.Palette, Color(0xFFAF52DE)) { on ->
+                model.update { it.copy(look = if (on) HomeLook.CLASSIC else HomeLook.SCENES) } }
+            SettingsSwitch("Slow cinematic motion", layout.motion, Icons.Default.Animation, Color(0xFFFF9F0A), divider = false) { on -> model.update { it.copy(motion = on) } }
         } }
-        item { GlassPanel {
-            Text("APPEARANCE", style = MaterialTheme.typography.labelMedium)
-            ThemeMode.entries.forEach { mode -> Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(layout.theme == mode, onClick = { model.update { it.copy(theme = mode) } })
-                TextButton(onClick = { model.update { it.copy(theme = mode) } }) { Text(mode.name.lowercase().replaceFirstChar(Char::uppercase)) }
-            } }
-            Text("Home and app drawer columns")
-            Row { (3..5).forEach { n -> FilterChip(layout.columns == n, { model.update { it.copy(columns = n) } }, label = { Text("$n") }, modifier = Modifier.padding(end = 10.dp)) } }
-            Text("Dock capacity · ${layout.dockLimit} apps")
-            Row { (3..7).forEach { n -> FilterChip(layout.dockLimit == n, { model.update { it.withDockLimit(n) } }, label = { Text("$n") }, modifier = Modifier.padding(end = 4.dp)) } }
-            Text("Extra pins move to home when shrinking the dock. The dock scrolls horizontally.", style = MaterialTheme.typography.bodySmall)
+        item { SettingsGroup("Home screen", footer = "Extra dock apps move to the home grid when you shrink the dock.") {
+            SegmentedRow("App grid columns") { Segmented(listOf(3, 4, 5), layout.columns, { "$it" }) { n -> model.update { it.copy(columns = n) } } }
+            SegmentedRow("Dock size") { Segmented(listOf(3, 4, 5, 6, 7), layout.dockLimit, { "$it" }) { n -> model.update { it.withDockLimit(n) } } }
+            SettingsRow("Hidden apps", Icons.Default.VisibilityOff, Color(0xFF8E8E93), value = "${layout.hidden.size}", divider = false) { hidden = true }
         } }
-        item { GlassPanel {
-            Text("HOME WIDGETS", style = MaterialTheme.typography.labelMedium)
-            listOf("weather" to "Weather", "music" to "Music player", "battery" to "Battery", "recent" to "Recently opened", "sports" to "Football scores", "prayer" to "Prayer times").forEach { (id, name) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(name, Modifier.weight(1f)); Switch(id in layout.widgets, { enabled -> model.update { it.copy(widgets = if (enabled) it.widgets + id else it.widgets - id) } })
-                }
-                if (id in layout.widgets) Row {
-                    TextButton(onClick = { model.update { it.copy(widgets = moveWidget(it.widgets, id, -1)) } }) { Text("Earlier") }
-                    TextButton(onClick = { model.update { it.copy(widgets = moveWidget(it.widgets, id, 1)) } }) { Text("Later") }
+        item { SettingsGroup("Widgets", footer = "Swipe sideways on home to see each widget. Use the arrows to reorder.") {
+            val all = listOf(
+                Triple("weather", "Weather", Icons.Default.WbSunny to Color(0xFF0A84FF)),
+                Triple("music", "Now Playing", Icons.Default.MusicNote to Color(0xFFFF2D55)),
+                Triple("battery", "Battery", Icons.Default.BatteryFull to Color(0xFF34C759)),
+                Triple("recent", "Recently opened", Icons.Default.History to Color(0xFF5E5CE6)),
+                Triple("sports", "Football scores", Icons.Default.SportsSoccer to Color(0xFF30B0C7)),
+                Triple("prayer", "Prayer times", Icons.Default.Schedule to Color(0xFFFF9F0A)))
+            all.forEach { (id, name, look) ->
+                val on = id in layout.widgets
+                SettingsRow(name, look.first, look.second, onClick = { model.update { it.copy(widgets = if (on) it.widgets - id else it.widgets + id) } }) {
+                    if (on) {
+                        IconButton(onClick = { model.update { it.copy(widgets = moveWidget(it.widgets, id, -1)) } }, Modifier.size(34.dp)) { Icon(Icons.Default.KeyboardArrowUp, "Move up") }
+                        IconButton(onClick = { model.update { it.copy(widgets = moveWidget(it.widgets, id, 1)) } }, Modifier.size(34.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                    }
+                    Switch(on, { enabled -> model.update { it.copy(widgets = if (enabled) it.widgets + id else it.widgets - id) } },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF34C759), checkedThumbColor = Color.White, checkedBorderColor = Color.Transparent))
                 }
             }
-            TextButton(onClick = weather) { Text("Weather location") }
-            Text("Hold a home card to remove it. Pin any app to home from All apps.", style = MaterialTheme.typography.bodySmall)
+            SettingsRow("Weather location", Icons.Default.LocationOn, Color(0xFF0A84FF), value = layout.city.ifBlank { "Not set" }, divider = false, onClick = weather)
         } }
-        item { GlassPanel {
-            Text("PROFILES & APPS", style = MaterialTheme.typography.labelMedium)
-            TextButton(onClick = profiles) { Text("Manage profiles") }
-            TextButton(onClick = { hidden = true }) { Text("Hidden apps (${layout.hidden.size})") }
-            TextButton(onClick = requestHome) { Text("Default home settings") }
+        item { SettingsGroup("General") {
+            SettingsRow("Profiles", Icons.Default.Person, Color(0xFF5E5CE6), value = profileName, onClick = profiles)
+            SettingsRow("Default home app", Icons.Default.Home, Color(0xFF34C759), divider = false, onClick = requestHome)
         } }
-        item { GlassPanel {
-            Text("BACKUP & RESTORE", style = MaterialTheme.typography.labelMedium)
-            Text("Export all profiles, layouts, names, widgets and scene settings. Custom photos, icon images and recent app history are excluded.", style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { exporting = model.exportBackup(); saveBackup.launch("andHOME-backup.json") }) { Text("Export backup") }
-            TextButton(onClick = { loadBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }) { Text("Restore backup") }
+        item { SettingsGroup("Backup", footer = "Profiles, layouts, names, widgets and scenes. Photos and custom icons aren't included.") {
+            SettingsRow("Export backup", Icons.Default.Upload, Color(0xFF0A84FF)) { exporting = model.exportBackup(); saveBackup.launch("andHOME-backup.json") }
+            SettingsRow("Restore backup", Icons.Default.Download, Color(0xFF0A84FF), divider = false) {
+                loadBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
         } }
-        item { GlassPanel {
-            Text("UPDATES", style = MaterialTheme.typography.labelMedium)
-            TextButton(enabled = !checking, onClick = { scope.launch {
-                checking = true; updateStatus = ""; release = null
-                try { release = UpdateChecker.latest(); updateStatus = release?.let { "Latest published version: ${it.version} · Installed: 0.2.0" } ?: "No published releases yet. You're running development version 0.2.0." }
-                catch (e: CancellationException) { throw e }
-                catch (_: Exception) { updateStatus = "Could not check releases. Try again later." }
-                finally { checking = false }
-            } }) { Text(if (checking) "Checking…" else "Check GitHub releases") }
-            if (updateStatus.isNotBlank()) Text(updateStatus, style = MaterialTheme.typography.bodySmall)
-            release?.let { result ->
-                Text(result.notes, style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.url))) } }) { Text("Open release and download") }
-            }
+        item { SettingsGroup("About", footer = updateStatus.ifBlank { null }) {
+            SettingsRow("Version", Icons.Default.Info, Color(0xFF8E8E93), value = version)
+            SettingsRow(if (checking) "Checking…" else "Check for updates", Icons.Default.SystemUpdate, Color(0xFF34C759),
+                divider = release != null, onClick = { if (!checking) scope.launch {
+                    checking = true; updateStatus = ""; release = null
+                    try { release = UpdateChecker.latest(); updateStatus = release?.let { if (it.version.trimStart('v') == version) "You're up to date." else "Version ${it.version} is available." } ?: "No published releases yet." }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { updateStatus = "Could not check for updates. Try again later." }
+                    finally { checking = false }
+                } })
+            release?.let { result -> SettingsRow("Download ${result.version}", Icons.Default.Download, Accent, divider = false) {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.url))) } } }
         } }
-        item { Text("andHOME 0.2 · tvHOME, made for your phone\nScene assets from TV Home / tvOS Launcher, Apache 2.0.\nWeather by Open-Meteo. No advertising or analytics.", style = MaterialTheme.typography.bodySmall) }
+        item { Text("Scenes from TV Home / tvOS Launcher (Apache 2.0) · Weather by Open-Meteo · No ads or analytics",
+            fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = .45f), modifier = Modifier.padding(horizontal = 16.dp)) }
     }
     if (hidden) AlertDialog(onDismissRequest = { hidden = false }, title = { Text("Hidden apps") }, text = {
         LazyColumn { if (layout.hidden.isEmpty()) item { Text("No hidden apps") }
@@ -150,6 +171,25 @@ internal fun ColumnScope.CustomizeScreen(model: HomeViewModel, state: HomeState,
             model.restoreBackup(backup).onSuccess { message("Backup restored") }.onFailure { message("Backup rejected: ${it.message}") }
             pendingRestore = null
         }) { Text("Restore and replace") } }, dismissButton = { TextButton(onClick = { pendingRestore = null }) { Text("Cancel") } }) }
+}
+
+private fun sceneName(scene: String) = when (scene) { "golden" -> "Golden hour"; "water" -> "Waterline"; "fog" -> "Fog"; "dawn" -> "Dawn"; else -> "Night" }
+
+@Composable
+private fun SceneThumb(scene: String, name: String, selected: Boolean, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val thumb by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, scene) {
+        value = withContext(Dispatchers.IO) { runCatching {
+            context.assets.open("scenes/scene-$scene.jpg").use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = 8 })?.asImageBitmap() }
+        }.getOrNull() }
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(width = 84.dp, height = 150.dp).clip(RoundedCornerShape(14.dp)).background(Color.DarkGray)
+            .border(if (selected) 2.5.dp else 0.dp, if (selected) Accent else Color.Transparent, RoundedCornerShape(14.dp)).clickable(onClick = onClick)) {
+            thumb?.let { Image(it, name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
+        Text(name, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+    }
 }
 
 internal fun moveWidget(widgets: List<String>, id: String, delta: Int): List<String> {

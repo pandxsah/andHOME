@@ -1,0 +1,24 @@
+name: Build release APK
+# Builds an UNSIGNED release APK for signing offline. Nothing is uploaded as an Actions artifact;
+# the APK is handed off on a temporary branch (ci-apk-drop) that is deleted after pickup.
+on:
+  push:
+    branches-ignore: [ci-apk-drop]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: '17' }
+      - run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;35.0.0"
+      - run: chmod +x gradlew && ./gradlew assembleRelease testDebugUnitTest --no-daemon
+      - name: Hand off unsigned APK
+        run: |
+          mkdir /tmp/drop && cp app/build/outputs/apk/release/*.apk /tmp/drop/
+          cd /tmp/drop && git init -q -b ci-apk-drop && git add . \
+            && git -c user.name=ci -c user.email=ci@localhost commit -qm "unsigned ${GITHUB_SHA}" \
+            && git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-apk-drop
